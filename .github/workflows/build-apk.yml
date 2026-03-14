@@ -20,11 +20,19 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 使用 gradle/actions/setup-gradle 启用缓存，不指定版本，让 wrapper 决定
+      # 安装 Gradle 8.2（用于生成 wrapper 和后续构建）
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.2"
 
-      # 将仓库根目录下的 public/icon.png 复制到各 mipmap 目录，解决资源缺失
+      # 生成 Gradle Wrapper（如果项目中没有 gradlew，此步骤会创建它）
+      - name: Generate Gradle Wrapper
+        run: |
+          cd android-tv
+          gradle wrapper
+
+      # 将根目录 public/icon.png 复制到各 mipmap 目录，解决资源缺失
       - name: Copy icon to mipmap directories
         run: |
           mkdir -p android-tv/app/src/main/res/mipmap-hdpi
