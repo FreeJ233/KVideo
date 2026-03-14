@@ -1,3 +1,4 @@
+kotlin
 pluginManagement {
     repositories {
         google()
@@ -6,7 +7,7 @@ pluginManagement {
     }
 }
 
-dependencyResolution {
+dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
