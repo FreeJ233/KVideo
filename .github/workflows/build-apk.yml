@@ -24,7 +24,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           # 指定 Gradle 版本，可根据项目需要修改（例如 7.5、8.0 等）
-          gradle-version: "8.0"
+          gradle-version: "8.2"
 
       - name: Generate Gradle Wrapper
         run: |
