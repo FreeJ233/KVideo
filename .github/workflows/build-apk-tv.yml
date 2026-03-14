@@ -1,0 +1,77 @@
+name: Build Android TV APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug/release)'
+        required: true
+        default: 'debug'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Android TV APK
+    runs-on: ubuntu-latest
+
+    # 默认工作目录设为 android-tv，适用于大多数步骤
+    defaults:
+      run:
+        working-directory: ./android-tv
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # 版本读取步骤需要在根目录执行（因为 package.json 在根目录）
+      - name: Get version from package.json (root)
+        id: package-version
+        working-directory: .  # 明确回到根目录
+        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew assemble${{ github.event.inputs.build_type == 'release' && 'Release' || 'Debug' }}
+
+      - name: Locate generated APK
+        id: find-apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+
+      - name: Rename and prepare APK for upload
+        run: |
+          mkdir -p artifacts
+          cp "${{ steps.find-apk.outputs.apk_path }}" "artifacts/KVideo.${{ steps.package-version.outputs.version }}.apk"
+
+      - name: Generate Release Notes
+        id: release-notes
+        run: |
+          echo "body=Automated ${{ github.event.inputs.build_type }} build from commit ${{ github.sha }} on $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.package-version.outputs.version }}
+          name: Release v${{ steps.package-version.outputs.version }}
+          body: ${{ steps.release-notes.outputs.body }}
+          draft: false
+          prerelease: false
+          allow_updates: true
+          # files 路径相对于 GITHUB_WORKSPACE（根目录），需包含子目录前缀
+          files: android-tv/artifacts/KVideo.${{ steps.package-version.outputs.version }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
