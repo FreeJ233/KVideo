@@ -52,8 +52,13 @@ jobs:
       - name: Build Debug APK
         run: cd android-tv && ./gradlew assembleDebug
 
+      - name: Rename APK to KVideo
+        run: |
+          cd app/build/outputs/apk/debug
+          mv *.apk KVideo.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: android-tv/app/build/outputs/apk/debug/*.apk
+          name: KVideo-debug-apk
+          path: android-tv/app/build/outputs/apk/debug/KVideo.apk
