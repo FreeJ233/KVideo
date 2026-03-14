@@ -1,67 +1,50 @@
-name: Build Android APK
+name: Build Android APK (Debug)
 
 on:
-  workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type (debug/release)'
-        required: true
-        default: 'debug'
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
 
-permissions:
-  contents: write
+# 设置所有 run 步骤的默认工作目录为 android-tv
+defaults:
+  run:
+    working-directory: android-tv
 
 jobs:
-  direct_build:
-    name: Build Android TV APK
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Get version from package.json
-        id: package-version
-        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
-
-      - name: Setup JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: "zulu"
-          java-version: "17"
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Make gradlew executable
+      - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew assemble${{ github.event.inputs.build_type == 'release' && 'Release' || 'Debug' }}
-
-      - name: Locate APK
-        id: find-apk
-        run: |
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n1)
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-
-      - name: Rename APK file
-        run: |
-          mkdir -p artifacts
-          cp "${{ steps.find-apk.outputs.apk_path }}" artifacts/KVideo.${{ steps.package-version.outputs.version }}.apk
-
-      - name: Generate Release Notes
-        id: release-notes
-        run: |
-          echo "body=Automated ${{ github.event.inputs.build_type }} build from commit ${{ github.sha }} on $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-
-      - name: Create Release and Upload APK
-        uses: softprops/action-gh-release@v2
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
         with:
-          tag_name: v${{ steps.package-version.outputs.version }}
-          name: Release v${{ steps.package-version.outputs.version }}
-          body: ${{ steps.release-notes.outputs.body }}
-          draft: false
-          prerelease: false
-          allow_updates: true
-          files: artifacts/KVideo.${{ steps.package-version.outputs.version }}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          # 注意：hashFiles 基于仓库根目录，因此需要包含 android-tv 路径
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android-tv/**/*.gradle*', 'android-tv/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          # 路径相对于仓库根目录，因为 upload-artifact 默认从仓库根目录查找
+          path: android-tv/app/build/outputs/apk/debug/*.apk
