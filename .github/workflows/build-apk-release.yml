@@ -68,6 +68,34 @@ jobs:
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
+      # 验证生成的 APK 是否已正确签名
+      - name: Verify APK signature
+        run: |
+          APK_PATH="android-tv/app/build/outputs/apk/release/*.apk"
+          apk_file=$(ls $APK_PATH | head -n1)
+          if [ ! -f "$apk_file" ]; then
+            echo "::error::APK file not found!"
+            exit 1
+          fi
+          echo "Verifying signature for $apk_file"
+          # 尝试使用 Android SDK 的 apksigner（优先）
+          if [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME/build-tools" ]; then
+            build_tools_dir="$ANDROID_HOME/build-tools"
+            latest_version=$(ls -1 $build_tools_dir | sort -V | tail -n1)
+            apksigner="$build_tools_dir/$latest_version/apksigner"
+            if [ -f "$apksigner" ]; then
+              "$apksigner" verify --verbose "$apk_file"
+            else
+              echo "apksigner not found, using jarsigner"
+              jarsigner -verify -verbose -certs "$apk_file"
+            fi
+          else
+            echo "ANDROID_HOME not set, using jarsigner"
+            jarsigner -verify -verbose -certs "$apk_file"
+          fi
+          # 如果验证失败，上述命令会返回非零状态码，导致步骤失败
+
+      # 上传签名的 APK 作为构建产物
       - name: Upload Release APK artifact
         uses: actions/upload-artifact@v4
         with:
