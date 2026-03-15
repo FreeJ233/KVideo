@@ -30,6 +30,7 @@ jobs:
           cd android-tv
           gradle wrapper
 
+      # 将根目录 public/icon.png 复制到各 mipmap 目录，解决资源缺失
       - name: Copy icon to mipmap directories
         run: |
           mkdir -p android-tv/app/src/main/res/mipmap-hdpi
@@ -43,23 +44,26 @@ jobs:
           cp public/icon.png android-tv/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
           cp public/icon.png android-tv/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
 
-      # 解码 keystore 到 app 模块目录
+      # 从 Secrets 中还原 Keystore 文件到 app 模块目录
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android-tv/app/keystore.jks
 
+      # 验证 keystore 文件是否生成成功
       - name: Verify keystore file
-        run: ls -l android-tv/app/keystore.jks
+        run: |
+          ls -l android-tv/app/keystore.jks
+          echo "Keystore file path: $(realpath android-tv/app/keystore.jks)"
 
       - name: Grant execute permission for gradlew
         run: chmod +x android-tv/gradlew
 
-      # 构建签名 Release APK，指定文件路径为 app/keystore.jks
+      # 构建签名的 Release APK，使用绝对路径指定 keystore
       - name: Build Signed Release APK
         run: |
           cd android-tv
           ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=app/keystore.jks \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/android-tv/app/keystore.jks \
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
